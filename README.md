@@ -1,4 +1,4 @@
-*hiim_pipeline
+# hiim_pipeline
 
 A data analysis pipeline to process MeerKAT data for interferometric HI intensity mapping
 
