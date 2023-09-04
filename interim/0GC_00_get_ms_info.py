@@ -22,6 +22,7 @@ config = tidy_config_path(config)
 
 master_ms = config['FILE']['master_ms']
 nchan = get_nchan(master_ms)
+nscan = get_nscan(master_ms)
 
 PRE_NCHANS = config['PRE']['NCHANS']
 
@@ -36,6 +37,7 @@ working_ms = working_ms.rstrip('/')[st_indx:]
 working_ms = config['FILE']['work_dir']+'/'+working_ms
 
 config['FILE']['working_ms']=working_ms
+config['FILE']['nscan']=str(nscan)
 
 print('saved config to '+config['FILE']['work_dir']+'/config.py')
     #json.dump(ini_to_json(config),f)

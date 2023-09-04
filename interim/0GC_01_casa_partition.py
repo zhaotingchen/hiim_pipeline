@@ -2,6 +2,7 @@
 import glob
 import sys
 import os
+import numpy as np
 
 config_file = sys.argv[-1]
 execfile(config_file)
@@ -15,4 +16,6 @@ partition(vis = master_ms,
 	      outputvis = outms,
           createmms = True,
           separationaxis='scan', 
+          numsubms=FILE_nscan,
+          spw=PRE_spw,
          )
