@@ -20,3 +20,4 @@ share/python-wheels/
 MANIFEST
 *.pyc
 core
+*-checkpoint.py
