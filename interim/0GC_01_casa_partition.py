@@ -1,4 +1,4 @@
-#mpicasa, LARGE, config.py
+#mpicasa, LARGE, config.py, 0
 import glob
 import sys
 import os
@@ -19,3 +19,6 @@ partition(vis = master_ms,
           numsubms=FILE_nscan,
           spw=PRE_spw,
          )
+
+clearstat()
+clearstat()
