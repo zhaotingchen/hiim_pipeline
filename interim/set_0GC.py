@@ -25,10 +25,16 @@ pylist = glob.glob(config['FILE']['interim']+'/0GC*')
 
 for file in pylist[:]:
     file_setup = get_file_setup(file)
+    file_setup = get_file_setup(file)
+    if file_setup['loop'].isnumeric():
+        loop = int(file_setup['loop'])
+    else:
+        loop = len(locals()[file_setup['loop']])
     syscall = gen_syscall(file_setup['calltype'],
                           file,
                           config,
-                          args=config['FILE']['work_dir']+'/'+file_setup['args'])
+                          args=config['FILE']['work_dir']+'/'+file_setup['args'],
+                         loop=loop)
     jobname = file[find(file,'/')[-1]+1:find(file,'.')[-1]]
     job_handler(syscall,jobname,config,file_setup['jobtype'])
 

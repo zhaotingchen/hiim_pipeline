@@ -16,7 +16,7 @@ from hiimtool.config_util import tidy_config_path
 
 config = tidy_config_path(config)
 
-for path in (config['OUTPUT']['log'],config['OUTPUT']['script']):
+for path in (config['OUTPUT'].values()):
     if os.path.isdir(path): continue
     os.mkdir(path)
         

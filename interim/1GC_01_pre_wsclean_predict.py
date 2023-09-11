@@ -31,30 +31,37 @@ if not use_field:
     raise ValueError('use set_jy instead of this to ignore field sources')
 
 syscall = ''
-python_file = 'import numpy as np \n' + 'from astropy.io import fits \n' + 'import os \n'
+python_file = 'import numpy as np \n' + 'from astropy.io import fits \n' + 'import os \n' + 'from casacore.tables import table \n'
+python_file += '''
+mymms = '{mymms}'
+spw_table = table(mymms+'/SPECTRAL_WINDOW',ack=False)
+chans = spw_table.getcol('CHAN_FREQ')[0] \n
+'''.format(**locals())
+
+channels_out = get_nchan(mymms)
+
 for primary_name in CAL_1GC_PRIMARY_NAME:
     if ((primary_name != '1934-638')*(primary_name != '0408-65')):
         raise ValueError('Only support primary calibrator 1934-638 or 0408-65 currently')
+    
     file_setup = dict(config['WSCLEAN_1GC']).copy()
-    channels_out = config['WSCLEAN_1GC']['channels-out']
-    if channels_out == 'auto':
-        channels_out = get_nchan(mymms)
-    else:
-        channels_out = int(channels_out)
-    file_setup['channels-out'] = str(channels_out)
+    del file_setup['channels-out']
     field_id = np.where(np.array(CAL_1GC_FIELD_NAMES) == primary_name)[0][0]
     file_setup['name'] = OUTPUT_image+'/'+primary_name+'_dirty'
     file_setup['field'] = str(field_id)
     syscall += gen_syscall_wsclean(mymms,config,file_setup)
     
-    python_file += '''
-for i in range({channels_out}):
-    im = fits.getdata('{OUTPUT_image}/{primary_name}_dirty-%04i-image.fits' %i)
-    header = fits.getheader('{OUTPUT_image}/{primary_name}_dirty-%04i-image.fits' %i)
-    im = np.zeros_like(im)
+    python_file +='''
+im = fits.getdata('{OUTPUT_image}/{primary_name}_dirty-image.fits')
+header = fits.getheader('{OUTPUT_image}/{primary_name}_dirty-image.fits')
+im = np.zeros_like(im)
+hdu = fits.PrimaryHDU(im, header=header)
+for i in range(972):
     hdu = fits.PrimaryHDU(im, header=header)
+    hdu.header['CRVAL3'] = chans[i]
     hdu.writeto('{OUTPUT_image}/{primary_name}_dirty-%04i-residual.fits' %i)
-    os.remove('{OUTPUT_image}/{primary_name}_dirty-%04i-image.fits' %i) \n'''.format(**locals())
+\n 
+    '''.format(**locals())
     
 jobname = '1GC_01_wsclean_predict'
 
@@ -72,6 +79,7 @@ del file_setup['no-dirty']
 del file_setup['field']
 del file_setup['name']
 predict_setup = file_setup.copy()
+predict_setup['channels-out'] = str(channels_out)
 file_setup['restore-list'] = ''
 
 predict_setup['predict'] = ''
