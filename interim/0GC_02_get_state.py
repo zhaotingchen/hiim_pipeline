@@ -45,6 +45,8 @@ primary_name,primary_id,primary_tag,primary_sep = get_primary_tag(candidate_dirs
                 candidate_names,
                 candidate_ids)
 
+secondary_dirs, secondary_names, secondary_ids = get_secondaries(ms_dir,secondary_state,field_dirs,field_names,field_ids)
+
 dorephrase = (np.array(primary_sep)>1e-5).tolist()
 
 subms_list = np.array(glob.glob(ms_dir+'/SUBMSS/*.ms'))
@@ -57,6 +59,9 @@ primary_scan = []
 for i in range(len(primary_state)):
     primary_scan += [[],]
 
+secondary_scan = []
+for i in range(len(secondary_state)):
+    secondary_scan += [[],]
 
 for i,scan_id in enumerate(scan_list):
     sub_ms = subms_list[i]
@@ -64,6 +69,8 @@ for i,scan_id in enumerate(scan_list):
     sub_state = np.unique(tab.getcol('STATE_ID'))
     if sub_state in primary_state:
         primary_scan[primary_state.index(sub_state)] += (scan_id,)
+    if sub_state in secondary_state:
+        secondary_scan[secondary_state.index(sub_state)] += (scan_id,)
 
 with open('config.py','a') as file:
     file.write('CAL_1GC_PRIMARY_STATE'+' = '+str(primary_state)+'\n')
@@ -72,5 +79,7 @@ with open('config.py','a') as file:
     file.write('CAL_1GC_UNKNOWN_STATE'+' = '+str(unknown_state)+'\n')
     file.write('CAL_1GC_FIELD_NAMES'+' = '+str(field_names)+'\n')
     file.write('CAL_1GC_PRIMARY_NAME'+' = '+str(primary_name)+'\n')
+    file.write('CAL_1GC_SECONDARY_NAME'+' = '+str(secondary_names)+'\n')
     file.write('CAL_1GC_REPHASE'+' = '+str(dorephrase)+'\n')
     file.write('CAL_1GC_PRIMARY_SCAN'+' = '+str(primary_scan)+'\n')
+    file.write('CAL_1GC_SECONDARY_SCAN'+' = '+str(secondary_scan)+'\n')

@@ -10,6 +10,10 @@ import os.path as o
 import sys
 import configparser
 
+def unravel_list(inp):
+    out = [item for sublist in inp for item in sublist]
+    return out
+
 config_file = sys.argv[1]
 config = configparser.ConfigParser()
 config.read(config_file)
@@ -34,7 +38,7 @@ for file in pylist[:]:
     if file_setup['loop'].isnumeric():
         loop = int(file_setup['loop'])
     else:
-        loop = len(locals()[file_setup['loop']])
+        loop = len(unravel_list(locals()[file_setup['loop']]))
     syscall = gen_syscall(file_setup['calltype'],
                           file,
                           config,
