@@ -12,7 +12,7 @@ config.read(config_file)
 hiimtool = config['FILE']['hiimtool']
 sys.path.append(hiimtool)
 from hiimtool.config_util import tidy_config_path
-from hiimtool.ms_tool import read_ms,get_refant,get_antnames
+from hiimtool.ms_tool import read_ms,get_antnames
 
 config = tidy_config_path(config)
 

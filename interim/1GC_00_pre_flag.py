@@ -19,6 +19,7 @@ config_file = sys.argv[-1]
 execfile(config_file)
 mymms = FILE_working_ms
 save_flag = (CAL_1GC_save_flag.lower()=='true')
+extra_preflag = (CAL_1GC_extra_preflag.lower()=='true')
 
 for REPHASE in CAL_1GC_REPHASE:
     if REPHASE:
@@ -71,18 +72,27 @@ flagdata(vis = mymms,
          flagbackup=False,
         )
 
-print('Flag primary calibrator data...')
-flagdata(vis=mymms,mode='rflag',datacolumn='data',field=bp_scan_field_name,flagbackup=False,)
-flagdata(vis=mymms,mode='tfcrop',datacolumn='data',field=bp_scan_field_name,flagbackup=False,)
-flagdata(vis=mymms,mode='extend',growtime=90.0,growfreq=90.0,growaround=True,flagneartime=True,flagnearfreq=True,field=bp_scan_field_name,flagbackup=False,)
 
-print('Flag secondary calibrator data...')
-flagdata(vis=mymms,mode='rflag',datacolumn='data',field=p_scan_field_name,flagbackup=False,)
-flagdata(vis=mymms,mode='tfcrop',datacolumn='data',field=p_scan_field_name,flagbackup=False,)
-flagdata(vis=mymms,mode='extend',growtime=90.0,growfreq=90.0,growaround=True,flagneartime=True,flagnearfreq=True,field=p_scan_field_name,flagbackup=False,)
+if extra_preflag:
+    print('Flag primary calibrator data...')
+    flagdata(vis=mymms,mode='rflag',datacolumn='data',
+             field=bp_scan_field_name,flagbackup=False,)
+    flagdata(vis=mymms,mode='tfcrop',datacolumn='data',
+             field=bp_scan_field_name,flagbackup=False,)
+    flagdata(vis=mymms,mode='extend',growtime=90.0,growfreq=90.0,
+             growaround=True,flagneartime=True,flagnearfreq=True,
+             field=bp_scan_field_name,flagbackup=False,)
 
-#print('Adding model column...')
-#clearcal(vis = mymms, addmodel = True)
+    print('Flag secondary calibrator data...')
+    flagdata(vis=mymms,mode='rflag',datacolumn='data',
+             field=p_scan_field_name,flagbackup=False,)
+    flagdata(vis=mymms,mode='tfcrop',datacolumn='data',
+             field=p_scan_field_name,flagbackup=False,)
+    flagdata(vis=mymms,mode='extend',growtime=90.0,growfreq=90.0,growaround=True,
+             flagneartime=True,flagnearfreq=True,field=p_scan_field_name,flagbackup=False,)
+
+print('Adding model column...')
+clearcal(vis = mymms, addmodel = True)
 
 
 

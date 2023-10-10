@@ -1,0 +1,2 @@
+Format = Name, Type, Ra, Dec, I, SpectralIndex, LogarithmicSI, ReferenceFrequency='1283791015.625' 
+prim,POINT, 19:39:25.02671,-63d42m45.6255s,15.08878461,[-1.32055307, -7.71570958, 15.0796986, -23.35984842, -29.32355766],false,1283791015.625
