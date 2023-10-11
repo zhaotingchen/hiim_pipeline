@@ -54,7 +54,7 @@ def get_ref_ant():
 
 ref_ant = get_ref_ant()
 with open(FILE_work_dir+'/config.py','a') as f:
-    f.write('\nCAL_1GC_ref_pool = '+ str(ref_ant))
+    f.write('\nCAL_1GC_ref_pool = '+ str(ref_ant) + ' \n')
 
 
 
