@@ -29,7 +29,7 @@ work_dir = config['FILE']['work_dir']
 sys.path.append(work_dir)
 from config import *
 
-pylist = glob.glob(config['FILE']['interim']+'/1GC*')
+pylist = glob.glob(config['FILE']['interim']+'/2GC*')
 
 for file in pylist[:]:
     #print(file)
