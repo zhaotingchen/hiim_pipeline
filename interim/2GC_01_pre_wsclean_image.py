@@ -5,6 +5,8 @@ import os
 import numpy as np
 import configparser
 
+jobname = '2GC_02_wsclean_0th_image'
+
 config_file = sys.argv[-1]
 config = configparser.ConfigParser()
 config.read(config_file)
@@ -39,6 +41,8 @@ target_field = [field for field in CAL_1GC_FIELD_NAMES if field not in (CAL_1GC_
 file_setup = dict(config['WSCLEAN_2GC']).copy()
 
 field_id = np.where(np.array(CAL_1GC_FIELD_NAMES) == target_field)[0]
-file_setup['field'] = str(field_id)
-file_setup['name'] = OUTPUT_image + '/' + target_field
+file_setup['field'] =strlist_to_str(np.vectorize(str)(field_id))
+file_setup['name'] = OUTPUT_image + '/' + target_field+'_tt0'
+
 syscall = gen_syscall_wsclean(mymms,config,file_setup)
+job_handler(syscall,jobname,config,'WSCLEAN')
