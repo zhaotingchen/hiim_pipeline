@@ -15,13 +15,14 @@ config.read(config_file)
 hiimtool = config['FILE']['hiimtool']
 sys.path.append(hiimtool)
 from hiimtool.config_util import tidy_config_path
-from hiimtool.ms_tool import get_chanfreq
 
 config = tidy_config_path(config)
 
 work_dir = config['FILE']['work_dir']
 sys.path.append(work_dir)
 from config import *
+
+
 
 def find_block_id(filename):
     reex = '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
@@ -75,8 +76,6 @@ p_scan_field_name = np.repeat(CAL_1GC_SECONDARY_NAME,num_scan_sec).tolist()
 
 g_scan_field_name = np.array(bp_scan_field_name+p_scan_field_name)[scan_sort].tolist()
 
-num_sub_spw = int(CAL_1GC_phase_sub_band)
-
 gaincal_default = {
     'uvrange':myuvrange,
     'spw':'',
@@ -113,7 +112,6 @@ applycal_default = {
     'parang':False,
     'interp':'',
     'field':'',
-    'spw':'',
 }
 
 flagdata_default={
@@ -200,7 +198,6 @@ def applycal_worker(subms,gaintable,gainfield,update_pars,norun=False):
              parang=apply_pars['parang'],
              gainfield=gainfield,
              interp=apply_pars['interp'],
-             spw=apply_pars['spw'],
              flagbackup=False,
             )
     return 1
@@ -224,21 +221,6 @@ def fluxscale_worker(subms,cal_round,update_pars,norun=False):
              )
     return 1
 
-num_sub_spw = int(CAL_1GC_phase_sub_band)
-num_ch = len(get_chanfreq(mymms))
-num_ch_per_i = np.ones(num_sub_spw,dtype='int')*num_ch//num_sub_spw
-num_ch_per_i[:num_ch%num_sub_spw]+=1
-num_ch_cumu_i = np.cumsum(num_ch_per_i)
-num_ch_cumu_i = np.append(0,num_ch_cumu_i)
-
-spw_str = ()
-for i in range(num_sub_spw):
-    low_indx = num_ch_cumu_i[i]
-    up_indx = num_ch_cumu_i[i+1]-1
-    spw_i = '*:'+str(low_indx)+'~'+str(up_indx)
-    spw_str += (spw_i,)
-    
-    
 #----------------Flag unfilled model in primary------------------
 for scan in bp_scan:
     sub_ms = get_subms(scan)
@@ -263,7 +245,6 @@ cal_args = {'uvrange':'',
             'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+caltype+str(cround)
            }
 arg = (mymms,caltype,cround,cal_args)
-
 gaincal_worker(arg[0],arg[1],arg[2],arg[3])
 
 # round 0, gain on primary
@@ -274,69 +255,48 @@ cal_args = {'calmode':'p',
             'minsnr':5,
             'interp':['nearest'],
             'field':strlist_to_str(np.unique(bp_scan_field_name)),
-            #'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+caltype+str(cround),
+            'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+caltype+str(cround),
             'gaintable':gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(cround),
             'gainfield':strlist_to_str(np.unique(bp_scan_field_name)),
-            'append':False,
            }
-#arg = (mymms,caltype,cround,cal_args)
+arg = (mymms,caltype,cround,cal_args)
+gaincal_worker(arg[0],arg[1],arg[2],arg[3])
 
-arglist = []
-for i in range(num_sub_spw):
-    i_args = cal_args.copy()
-    i_args['spw'] = spw_str[i]
-    i_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+caltype+str(cround)
-    arglist += [(mymms,caltype,cround,i_args),]
-    
-for arg in arglist:
-    gaincal_worker(arg[0],arg[1],arg[2],arg[3])
-    
 #round 0, bandpass on primary
 caltype='B'
 #num_proc = len(bp_scan)
 
 ktabc = gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(cround)
-#gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround)
 cal_args = {
             'interp':['nearest','nearest'],
-            #'gaintable':[ktabc,gtabc],
+            'gaintable':[ktabc,gtabc],
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name))],
             'field':strlist_to_str(np.unique(bp_scan_field_name)),
-            #'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+caltype+str(cround),
+            'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+caltype+str(cround),
            }
 
-arglist = []
-for i in range(num_sub_spw):
-    gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'G'+str(cround)
-    i_args = cal_args.copy()
-    i_args['spw'] = spw_str[i]
-    i_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+caltype+str(cround)
-    i_args['gaintable'] = [ktabc,gtabc]
-    arglist += [(mymms,caltype,cround,i_args),]
+arg = (mymms,caltype,cround,cal_args)
+bandpass_worker(arg[0],arg[1],arg[2],arg[3])
 
-for arg in arglist:
-    bandpass_worker(arg[0],arg[1],arg[2],arg[3])
-    
 # flag the bandpass solution
 datacol = 'CPARAM'
 fmode = 'tfcrop'
-for i in range(num_sub_spw):
-    btabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround)
-    flagdata_worker(btabc,fmode,datacol)
+arg = (gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround),fmode,datacol)
+flagdata_worker(arg[0],arg[1],arg[2])
 
 datacol = 'CPARAM'
 fmode = 'rflag'
-for i in range(num_sub_spw):
-    btabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround)
-    flagdata_worker(btabc,fmode,datacol)
-    
+arg = (gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround),fmode,datacol)
+flagdata_worker(arg[0],arg[1],arg[2])
+
 # apply the solutions to the primary data
 ktabc = gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(cround)
-#gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround)
-#btabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround)
+btabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround)
 app_args = {'interp':['nearest','nearest','nearest'],
-            #'gaintable':[ktabc,gtabc,btabc],
+            'gaintable':[ktabc,gtabc,btabc],
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),],
@@ -344,16 +304,13 @@ app_args = {'interp':['nearest','nearest','nearest'],
            }
 
 arglist = []
-for i in range(num_sub_spw):
-    i_args = app_args.copy()
-    gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'G'+str(cround)
-    btabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround)
-    i_args['gaintable'] = [ktabc,gtabc,btabc]
-    arglist += [(mymms,i_args['gaintable'],i_args['gainfield'],i_args),]
-    
+for i,scan in enumerate(bp_scan):
+    subms = get_subms(scan)
+    arglist += [(subms,app_args['gaintable'],app_args['gainfield'],app_args),]
+
 for arg in arglist:
     applycal_worker(arg[0],arg[1],arg[2],arg[3])
-    
+
 #flag the vis data in prim scans
 datacol = 'residual'
 fmode = 'rflag'
@@ -379,104 +336,89 @@ cround = 1
 
 #Round 1, delay on prim
 caltype='K'
+#num_proc = len(bp_scan)
+btab0 = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround-1) 
+gtab0 = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround-1) 
+
 
 cal_args = {'uvrange':'',
             'interp':['nearest','nearest'],
             'field':strlist_to_str(np.unique(bp_scan_field_name)),
+            'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+caltype+str(cround),
+            'gaintable':[gtab0,btab0],
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),]
            }
 
-arglist = []
-for i in range(num_sub_spw):
-    btab0 = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround-1) 
-    gtab0 = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'G'+str(cround-1) 
-    i_args = cal_args.copy()
-    i_args['spw'] = spw_str[i]
-    i_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+caltype+str(cround)
-    i_args['gaintable'] = [gtab0,btab0]
-    arglist += [(mymms,caltype,cround,i_args),]
-    
-for arg in arglist:
-    gaincal_worker(arg[0],arg[1],arg[2],arg[3])
-    
+arg = (mymms,caltype,cround,cal_args)
+gaincal_worker(arg[0],arg[1],arg[2],arg[3])
+
 #Round 1, phase on prim
 caltype='G'
+#num_proc = len(bp_scan)
+ktabc = gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(cround)
+btabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround-1)
 cal_args = {'calmode':'p',
             'minsnr':5,
             'interp':['nearest','nearest'],
             'field':strlist_to_str(np.unique(bp_scan_field_name)),
+            'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+caltype+str(cround),
+            'gaintable':[ktabc,btabc],
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),],
            }
 
-arglist = []
-for i in range(num_sub_spw):
-    btabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround-1)
-    ktabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'K'+str(cround) 
-    i_args = cal_args.copy()
-    i_args['spw'] = spw_str[i]
-    i_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+caltype+str(cround)
-    i_args['gaintable']=[ktabc,btabc]
-    arglist += [(mymms,caltype,cround,i_args),]
-    
-for arg in arglist:
-    gaincal_worker(arg[0],arg[1],arg[2],arg[3])
-    
+arg = (mymms,caltype,cround,cal_args)
+
+gaincal_worker(arg[0],arg[1],arg[2],arg[3])
+
+
 #round 1, bandpass
 caltype='B'
+#num_proc = len(bp_scan)
+
+ktabc = gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(cround)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround)
+
 cal_args = {
             'interp':['nearest','nearest'],
+            'gaintable':[ktabc,gtabc],
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name))],
             'field':strlist_to_str(np.unique(bp_scan_field_name)),
+            'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+caltype+str(cround),
            }
 arglist = []
-for i in range(num_sub_spw):
-    gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'G'+str(cround)
-    ktabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'K'+str(cround) 
-    i_args = cal_args.copy()
-    i_args['spw'] = spw_str[i]
-    i_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+caltype+str(cround)
-    i_args['gaintable']=[ktabc,gtabc]
-    arglist += [(mymms,caltype,cround,i_args),]
-for arg in arglist:
-    bandpass_worker(arg[0],arg[1],arg[2],arg[3])
-    
-# flag the bandpass solution
+arg = (mymms,caltype,cround,cal_args)
+
+bandpass_worker(arg[0],arg[1],arg[2],arg[3])
+
+#round 1, flag the bandpass solution
 datacol = 'CPARAM'
 fmode = 'tfcrop'
-for i in range(num_sub_spw):
-    btabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround)
-    flagdata_worker(btabc,fmode,datacol)
-
+arg = (gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround),fmode,datacol)
+flagdata_worker(arg[0],arg[1],arg[2])
+                                  
 datacol = 'CPARAM'
 fmode = 'rflag'
-for i in range(num_sub_spw):
-    btabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround)
-    flagdata_worker(btabc,fmode,datacol)
-    
-# apply the solutions to the primary data
+arg = (gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround),fmode,datacol)
+flagdata_worker(arg[0],arg[1],arg[2])
+
+
+#Round 1, apply the solutions to the primary data
+ktabc = gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(cround)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround)
+btabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround)
 app_args = {'interp':['nearest','nearest','nearest'],
+            'gaintable':[ktabc,gtabc,btabc],
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),],
             'field':strlist_to_str(np.unique(bp_scan_field_name)),
            }
+arg = (mymms,app_args['gaintable'],app_args['gainfield'],app_args)
+applycal_worker(arg[0],arg[1],arg[2],arg[3])
 
-arglist = []
-for i in range(num_sub_spw):
-    i_args = app_args.copy()
-    ktabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'K'+str(cround)
-    gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'G'+str(cround)
-    btabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround)
-    i_args['gaintable'] = [ktabc,gtabc,btabc]
-    i_args['spw'] = spw_str[i]
-    arglist += [(mymms,i_args['gaintable'],i_args['gainfield'],i_args),]
-    
-for arg in arglist:
-    applycal_worker(arg[0],arg[1],arg[2],arg[3])
-    
 #flag the vis data in prim scans
 datacol = 'residual'
 fmode = 'rflag'
@@ -499,146 +441,131 @@ for arg in arglist:
 #----------------Round 2------------------
 # Round 2
 cround = 2
-
 #Round 2 gaincal on primary
 caltype='G'
+bptabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround-1)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround-1)
+ktabc = gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(cround-1)
 
 cal_args = {'calmode':'ap',
             'minsnr':3,
             'interp':['nearest','nearest','nearest'],
-            #'gaintable':[ktabc,gtabc,bptabc],
+            'gaintable':[ktabc,gtabc,bptabc],
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),],
             'field':strlist_to_str(np.unique(bp_scan_field_name).tolist()),
+            'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround),
            }
-
-arglist = []
-for i in range(num_sub_spw):
-    bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(cround-1)
-    ktabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'K'+str(cround-1)
-    gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'G'+str(cround-1)
-    i_args = cal_args.copy()
-    i_args['spw'] = spw_str[i]
-    i_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+caltype+str(cround)
-    i_args['gaintable']=[ktabc,gtabc,bptabc]
-    arglist += [(mymms,caltype,cround,i_args),]
-    
-for arg in arglist:
-    gaincal_worker(arg[0],arg[1],arg[2],arg[3])
+arg =  (mymms,caltype,cround,cal_args)
+gaincal_worker(arg[0],arg[1],arg[2],arg[3])
 
 #copy the solutions to each secondary scan
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'G'+str(cround)
-        primtable = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(cround)
-        shutil.copytree(primtable,caltable)
-        
+    caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'G'+str(cround)
+    primtable = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround)
+    shutil.copytree(primtable,caltable)
+    
 #Round 2, gain on secondary
 caltype='G'
+#num_proc = min(len(p_scan),max_num_core)
 
 cal_args = {'calmode':'ap',
             'minsnr':3,
             'interp':('nearest','linear','linear'),
+            'gaintable':[ktabc,gtabc,bptabc],
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),],
             'append':True,
            }
-
 arglist = []
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'B'+str(cround-1)
-        ktabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'K'+str(cround-1)
-        gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(cround-1)
-        scan_args = cal_args.copy()
-        caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+caltype+str(cround)
-        scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
-        scan_args['spw'] = spw_str[spw_i]
-        scan_args['scan'] = scanlist
-        scan_args['field'] = p_scan_field_name[i]
-        scan_args['caltable'] = caltable
-        scan_args['gaintable'] = [ktabc,gtabc,bptabc]
-        arglist += [(mymms,caltype,cround,scan_args),]
+    caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'G'+str(cround)
+    scan_args = cal_args.copy()
+    scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
+    scan_args['scan'] = scanlist
+    scan_args['field'] = p_scan_field_name[i]
+    scan_args['caltable'] = caltable
+    arglist += [(mymms,caltype,cround,scan_args),]
 
 for arg in arglist:
     gaincal_worker(arg[0],arg[1],arg[2],arg[3])
-        
+    
 #copy delay tables to each secondary scan
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'K'+str(cround)
-        primtable = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'K'+str(cround-1)
-        shutil.copytree(primtable,caltable)
-        
+    caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'K'+str(cround)
+    primtable = gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(cround-1)
+    shutil.copytree(primtable,caltable)
+    
 #Round 2, delay on secondary
 caltype='K'
+#num_proc = min(len(p_scan),max_num_core)
 
 cal_args = {
             'interp':('nearest','linear','linear'),
             'append':True,
            }
+
 arglist = []
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'B'+str(cround-1)
-        gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(cround-1)
-        scan_args = cal_args.copy()
-        gtabscan = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'G'+str(cround)
-        scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
-        scan_args['spw'] = spw_str[spw_i]
-        scan_args['scan'] = scanlist
-        scan_args['field'] = p_scan_field_name[i]
-        scan_args['gaintable']=(gtabc,bptabc,gtabscan)
-        scan_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+caltype+str(cround)
-        arglist += [(mymms,caltype,cround,scan_args),]
-        
+    scan_args = cal_args.copy()
+    gtabscan = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'G'+str(cround)
+    scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
+    scan_args['scan'] = scanlist
+    scan_args['field'] = p_scan_field_name[i]
+    scan_args['gaintable']=(gtabc,bptabc,gtabscan)
+    scan_args['gainfield']=(strlist_to_str(np.unique(bp_scan_field_name)),strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[i])
+    scan_args['field'] = p_scan_field_name[i]
+    scan_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+caltype+str(cround)
+    arglist += [(mymms,caltype,cround,scan_args),]
+    
 for arg in arglist:
     gaincal_worker(arg[0],arg[1],arg[2],arg[3])
-    
+
 #Round 2, flux scale on sec
 caltype='flux'
+#num_proc = min(len(p_scan),max_num_core)
 
 cal_args = {
+    #'reference':np.unique(bp_scan_field_name).tolist()[0]
+    
     'reference':strlist_to_str(np.unique(bp_scan_field_name).tolist())
-}
+           }
+
 arglist = []
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        scan_args = cal_args.copy()
-        scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
-        scan_args['scan'] = scanlist
-        scan_args['caltable']=gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'G'+str(cround)
-        scan_args['transfer']=p_scan_field_name[i]
-        scan_args['fluxtable']=gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'flux'+str(cround)
-        arglist+=[(mymms,cround,scan_args),]
-        
+    scan_args = cal_args.copy()
+    scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
+    scan_args['scan'] = scanlist
+    scan_args['caltable']=gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'G'+str(cround)
+    scan_args['transfer']=p_scan_field_name[i]
+    scan_args['fluxtable']=gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'flux'+str(cround)
+    arglist+=[(mymms,cround,scan_args),]
+    
 for i,arg in enumerate(arglist):
     fluxscale_worker(arg[0],arg[1],arg[2])
 
 # apply the solutions to the secondary data
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround-1)
+bptabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(cround-1)
 app_args = {'interp':['nearest','linear','linear','linear'],
            }
 
 arglist = []
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        subms = get_subms(scan)
-        scan_args = app_args.copy()
-        bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'B'+str(cround-1)
-        gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(cround-1)
-        ftabc = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'flux'+str(cround)
-        ktabc = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'K'+str(cround)
-        scan_args['spw'] = spw_str[spw_i]
-        scan_args['gaintable'] = [ktabc,gtabc,bptabc,ftabc]
-        scan_args['gainfield'] = ['','',strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[i]]
-        scan_args['field'] = p_scan_field_name[i]
-        arglist += [(subms,scan_args['gaintable'],scan_args['gainfield'],scan_args),]
-        
+    ktabc = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'K'+str(cround)
+    ftabc = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'flux'+str(cround)
+    subms = get_subms(scan)
+    scan_args = app_args.copy()
+    scan_args['gaintable'] = [ktabc,gtabc,bptabc,ftabc]
+    scan_args['gainfield'] = ['','',strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[i]]
+    scan_args['field'] = p_scan_field_name[i]
+    arglist += [(subms,scan_args['gaintable'],scan_args['gainfield'],scan_args),]
+    
 for arg in arglist:
     applycal_worker(arg[0],arg[1],arg[2],arg[3])
-    
+
 # flag secondary data
 fmode = 'rflag'
 dcol = 'corrected'
@@ -664,97 +591,204 @@ cround = 3
 
 # Round 3, Gain cal on primary
 caltype='G'
+bptabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(1)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(1)
+ktabc = np.sort(glob.glob(gain_dir+'/cal_1GC_'+block_id+'*.'+'K'+str(cround-1))).tolist()[0]
 
+gaintab = [ktabc,]+[gtabc,]+[bptabc]
 cal_args = {'calmode':'ap',
             'minsnr':3,
             'interp':['nearest','nearest','nearest'],
-            #'gaintable':[ktabc,gtabc,bptabc],
-            'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
-                         strlist_to_str(np.unique(bp_scan_field_name)),
-                         strlist_to_str(np.unique(bp_scan_field_name)),],
+            'gaintable':gaintab,
+            'gainfield':np.repeat(strlist_to_str(np.unique(bp_scan_field_name)),len(gaintab)).tolist(),
             'field':strlist_to_str(np.unique(bp_scan_field_name).tolist()),
+            'caltable':gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround),
            }
 
-arglist = []
-for i in range(num_sub_spw):
-    bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'B'+str(1)
-    ktabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'K'+str(1)
-    gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+'G'+str(cround-1)
-    i_args = cal_args.copy()
-    i_args['spw'] = spw_str[i]
-    i_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(i)+'.'+caltype+str(cround)
-    i_args['gaintable']=[ktabc,gtabc,bptabc]
-    arglist += [(mymms,caltype,cround,i_args),]
-    
-for arg in arglist:
-    gaincal_worker(arg[0],arg[1],arg[2],arg[3])
-    
-#copy the solutions to each secondary scan
+arg =  (mymms,caltype,cround,cal_args)
+gaincal_worker(arg[0],arg[1],arg[2],arg[3])
+
+# copy the calibration table to each secondary scan
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'G'+str(cround)
-        primtable = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(cround)
-        shutil.copytree(primtable,caltable)
-        
+    caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'G'+str(cround)
+    primtable = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(cround)
+    shutil.copytree(primtable,caltable)
+    
 #Round 3, gain on secondary
 caltype='G'
-
+#num_proc = min(len(p_scan),max_num_core)
+bptabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(1)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(1)
 cal_args = {'calmode':'ap',
             'minsnr':3,
             'interp':('nearest','linear','linear'),
+            
             'gainfield':[strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),
                          strlist_to_str(np.unique(bp_scan_field_name)),],
             'append':True,
            }
-
 arglist = []
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'B'+str(1)
-        ktabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'K'+str(cround-1)
-        gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(1)
-        scan_args = cal_args.copy()
-        caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+caltype+str(cround)
-        scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
-        scan_args['spw'] = spw_str[spw_i]
-        scan_args['scan'] = scanlist
-        scan_args['field'] = p_scan_field_name[i]
-        scan_args['caltable'] = caltable
-        scan_args['gaintable'] = [ktabc,gtabc,bptabc]
-        arglist += [(mymms,caltype,cround,scan_args),]
+    caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'G'+str(cround)
+    ktabc = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'K'+str(cround-1)
+    scan_args = cal_args.copy()
+    scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
+    scan_args['scan'] = scanlist
+    scan_args['field'] = p_scan_field_name[i]
+    scan_args['caltable'] = caltable
+    scan_args['gaintable']=[ktabc,gtabc,bptabc]
+    arglist += [(mymms,caltype,cround,scan_args),]
 
 for arg in arglist:
     gaincal_worker(arg[0],arg[1],arg[2],arg[3])
-    
-#copy delay tables to each secondary scan
+
+#copy the delay tables to secondary scans
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'K'+str(cround)
-        primtable = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'K'+str(1)
-        shutil.copytree(primtable,caltable)
-        
+    caltable = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'K'+str(cround)
+    primtable = gain_dir+'/cal_1GC_'+block_id+'.'+'K'+str(1)
+    shutil.copytree(primtable,caltable)
+    
 #Round 3, delay on secondary
 caltype='K'
-
+#num_proc = min(len(p_scan),max_num_core)
+bptabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(1)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(1)
 cal_args = {
-            'interp':('nearest','linear','linear'),
+            'interp':('linear','linear','linear'),
             'append':True,
            }
+
 arglist = []
 for i,scan in enumerate(p_scan):
-    for spw_i in range(num_sub_spw):
-        bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'B'+str(1)
-        gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(1)
-        scan_args = cal_args.copy()
-        gtabscan = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+'G'+str(cround)
-        scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
-        scan_args['spw'] = spw_str[spw_i]
-        scan_args['scan'] = scanlist
-        scan_args['field'] = p_scan_field_name[i]
-        scan_args['gaintable']=(gtabc,bptabc,gtabscan)
-        scan_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+caltype+str(cround)
-        arglist += [(mymms,caltype,cround,scan_args),]
-        
+    scan_args = cal_args.copy()
+    gtabscan = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'G'+str(cround)
+    scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
+    scan_args['scan'] = scanlist
+    scan_args['field'] = p_scan_field_name[i]
+    scan_args['gaintable']=(gtabc,bptabc,gtabscan)
+    scan_args['gainfield']=(strlist_to_str(np.unique(bp_scan_field_name)),strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[i])
+    scan_args['field'] = p_scan_field_name[i]
+    scan_args['caltable'] = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+caltype+str(cround)
+    arglist += [(mymms,caltype,cround,scan_args),]
+    
 for arg in arglist:
     gaincal_worker(arg[0],arg[1],arg[2],arg[3])
+
+#Round 3, flux scale on sec
+caltype='flux'
+#num_proc = min(len(p_scan),max_num_core)
+
+cal_args = {
+    #'reference':np.unique(bp_scan_field_name).tolist()[0]
+    
+    'reference':strlist_to_str(np.unique(bp_scan_field_name).tolist())
+           }
+
+arglist = []
+for i,scan in enumerate(p_scan):
+    scan_args = cal_args.copy()
+    scanlist = strlist_to_str(np.sort(np.array(bp_scan+[scan],dtype='int')+1).astype('str').tolist())
+    scan_args['scan'] = scanlist
+    scan_args['caltable']=gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'G'+str(cround)
+    scan_args['transfer']=p_scan_field_name[i]
+    scan_args['fluxtable']=gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'flux'+str(cround)
+    arglist+=[(mymms,cround,scan_args),]
+    
+for i,arg in enumerate(arglist):
+    fluxscale_worker(arg[0],arg[1],arg[2])
+    
+# apply the solutions to the secondary
+#num_proc = min(len(p_scan),max_num_core)
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(1)
+bptabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(1)
+app_args = {'interp':['nearest','linear','linear','linear'],
+           }
+
+arglist = []
+for i,scan in enumerate(p_scan):
+    ktabc = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'K'+str(cround)
+    ftabc = gain_dir+'/cal_1GC_'+block_id+'_'+scan+'.'+'flux'+str(cround)
+    subms = get_subms(scan)
+    scan_args = app_args.copy()
+    scan_args['gaintable'] = [ktabc,gtabc,bptabc,ftabc]
+    scan_args['gainfield'] = ['','',strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[i]]
+    scan_args['field'] = p_scan_field_name[i]
+    arglist += [(subms,scan_args['gaintable'],scan_args['gainfield'],scan_args),]
+
+for arg in arglist:
+    applycal_worker(arg[0],arg[1],arg[2],arg[3])
+
+# flag secondary data
+fmode = 'rflag'
+dcol = 'corrected'
+arglist = []
+for i,scan in enumerate(p_scan):
+    subms = get_subms(scan)
+    arglist += [(subms,fmode,dcol),]
+    
+for arg in arglist:
+    flagdata_worker(arg[0],arg[1],arg[2])
+
+fmode = 'tfcrop'
+dcol = 'corrected'
+arglist = []
+for i,scan in enumerate(p_scan):
+    subms = get_subms(scan)
+    arglist += [(subms,fmode,dcol),]
+
+for arg in arglist:
+    flagdata_worker(arg[0],arg[1],arg[2])
+
+    
+# apply the solutions to the target scan
+scan_list = ['%04i' % i for i in range(nscan)]
+target_scan = [scan for scan in scan_list if scan not in g_scan]
+scan = target_scan[0]
+target_field = [field for field in CAL_1GC_FIELD_NAMES if field not in (CAL_1GC_PRIMARY_NAME+CAL_1GC_SECONDARY_NAME)][0]
+
+gtabc = gain_dir+'/cal_1GC_'+block_id+'.'+'G'+str(1)
+bptabc = gain_dir+'/cal_1GC_'+block_id+'.'+'B'+str(1)
+app_args = {'interp':['nearest','linear','linear','linear'],
+           }
+
+arglist = []
+for i,scan in enumerate(target_scan):
+    pair_indx = np.argmin(np.abs(np.array(p_scan).astype('int')-int(scan)))
+    pair_scan = p_scan[pair_indx]
+    ktabc = gain_dir+'/cal_1GC_'+block_id+'_'+pair_scan+'.'+'K'+str(cround)
+    ftabc = gain_dir+'/cal_1GC_'+block_id+'_'+pair_scan+'.'+'flux'+str(cround)
+    subms = get_subms(scan)
+    scan_args = app_args.copy()
+    scan_args['gaintable'] = [ktabc,gtabc,bptabc,ftabc]
+    scan_args['gainfield'] = ['',strlist_to_str(np.unique(bp_scan_field_name)),strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[pair_indx]]
+    scan_args['field'] = target_field
+    arglist += [(subms,scan_args['gaintable'],scan_args['gainfield'],scan_args),]
+
+for arg in arglist:
+    applycal_worker(arg[0],arg[1],arg[2],arg[3])
+    
+# flag target data
+fmode = 'rflag'
+dcol = 'corrected'
+arglist = []
+for i,scan in enumerate(target_scan):
+    subms = get_subms(scan)
+    arglist += [(subms,fmode,dcol),]
+
+for arg in arglist:
+    flagdata_worker(arg[0],arg[1],arg[2])
+    
+fmode = 'tfcrop'
+dcol = 'corrected'
+arglist = []
+for i,scan in enumerate(target_scan):
+    subms = get_subms(scan)
+    arglist += [(subms,fmode,dcol),]
+
+for arg in arglist:
+    flagdata_worker(arg[0],arg[1],arg[2])
+    
+
+if save_flag:
+    flagmanager(mymms, mode='save', versionname='after_1GC',)
