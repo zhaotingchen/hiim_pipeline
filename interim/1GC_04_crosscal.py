@@ -357,21 +357,12 @@ for arg in arglist:
 #flag the vis data in prim scans
 datacol = 'residual'
 fmode = 'rflag'
-arglist = []
-for i,scan in enumerate(bp_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,datacol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+flag_args = {'field':strlist_to_str(np.unique(bp_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 datacol = 'residual'
 fmode = 'tfcrop'
-arglist = []
-for i,scan in enumerate(bp_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,datacol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 #----------------Round 1------------------
 # Round 1
@@ -480,21 +471,12 @@ for arg in arglist:
 #flag the vis data in prim scans
 datacol = 'residual'
 fmode = 'rflag'
-arglist = []
-for i,scan in enumerate(bp_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,datacol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+flag_args = {'field':strlist_to_str(np.unique(bp_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 datacol = 'residual'
 fmode = 'tfcrop'
-arglist = []
-for i,scan in enumerate(bp_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,datacol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 #----------------Round 2------------------
 # Round 2
@@ -641,22 +623,14 @@ for arg in arglist:
     
 # flag secondary data
 fmode = 'rflag'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(p_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':strlist_to_str(np.unique(p_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
 
 fmode = 'tfcrop'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(p_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':strlist_to_str(np.unique(p_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 #----------------Round 3------------------
 # Round 3
@@ -803,24 +777,14 @@ for arg in arglist:
     
 # flag secondary data
 fmode = 'rflag'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(p_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-    
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':strlist_to_str(np.unique(p_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
 
 fmode = 'tfcrop'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(p_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':strlist_to_str(np.unique(p_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 # apply the solutions to the target scan
 scan_list = ['%04i' % i for i in range(nscan)]
@@ -850,24 +814,14 @@ for arg in arglist:
 
 # flag target data
 fmode = 'rflag'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(target_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':target_field,}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 fmode = 'tfcrop'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(target_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':target_field,}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 if save_flag:
     flagmanager(mymms, mode='save', versionname='after_1GC',)
