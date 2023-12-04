@@ -1,4 +1,4 @@
-#container, NODE, config.ini, nloop
+#containermpi, NODE, config.ini, nloop
 import glob
 import sys
 import os
