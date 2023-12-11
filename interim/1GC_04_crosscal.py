@@ -15,7 +15,7 @@ config.read(config_file)
 hiimtool = config['FILE']['hiimtool']
 sys.path.append(hiimtool)
 from hiimtool.config_util import tidy_config_path
-from hiimtool.ms_tool import get_chanfreq
+from hiimtool.ms_tool import get_chanfreq,get_nscan
 
 config = tidy_config_path(config)
 
@@ -357,21 +357,12 @@ for arg in arglist:
 #flag the vis data in prim scans
 datacol = 'residual'
 fmode = 'rflag'
-arglist = []
-for i,scan in enumerate(bp_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,datacol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+flag_args = {'field':strlist_to_str(np.unique(bp_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 datacol = 'residual'
 fmode = 'tfcrop'
-arglist = []
-for i,scan in enumerate(bp_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,datacol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 #----------------Round 1------------------
 # Round 1
@@ -480,21 +471,12 @@ for arg in arglist:
 #flag the vis data in prim scans
 datacol = 'residual'
 fmode = 'rflag'
-arglist = []
-for i,scan in enumerate(bp_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,datacol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+flag_args = {'field':strlist_to_str(np.unique(bp_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 datacol = 'residual'
 fmode = 'tfcrop'
-arglist = []
-for i,scan in enumerate(bp_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,datacol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 #----------------Round 2------------------
 # Round 2
@@ -641,22 +623,14 @@ for arg in arglist:
     
 # flag secondary data
 fmode = 'rflag'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(p_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':strlist_to_str(np.unique(p_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
 
 fmode = 'tfcrop'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(p_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':strlist_to_str(np.unique(p_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 #----------------Round 3------------------
 # Round 3
@@ -803,26 +777,17 @@ for arg in arglist:
     
 # flag secondary data
 fmode = 'rflag'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(p_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-    
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':strlist_to_str(np.unique(p_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
 
 fmode = 'tfcrop'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(p_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':strlist_to_str(np.unique(p_scan_field_name)),}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 # apply the solutions to the target scan
+nscan = get_nscan(mymms)
 scan_list = ['%04i' % i for i in range(nscan)]
 target_scan = [scan for scan in scan_list if scan not in g_scan]
 scan = target_scan[0]
@@ -840,6 +805,7 @@ for i,scan in enumerate(target_scan):
         ftabc = gain_dir+'/cal_1GC_'+block_id+'_'+pair_scan+'_subspw_'+str(spw_i)+'.'+'flux'+str(cround)
         subms = get_subms(scan)
         scan_args = app_args.copy()
+        scan_args['spw'] = spw_str[spw_i]
         scan_args['gaintable'] = [ktabc,gtabc,bptabc,ftabc]
         scan_args['gainfield'] = ['',strlist_to_str(np.unique(bp_scan_field_name)),strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[pair_indx]]
         scan_args['field'] = target_field
@@ -850,24 +816,14 @@ for arg in arglist:
 
 # flag target data
 fmode = 'rflag'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(target_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':target_field,}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 fmode = 'tfcrop'
-dcol = 'corrected'
-arglist = []
-for i,scan in enumerate(target_scan):
-    subms = get_subms(scan)
-    arglist += [(subms,fmode,dcol),]
-
-for arg in arglist:
-    flagdata_worker(arg[0],arg[1],arg[2])
+datacol = 'corrected'
+flag_args = {'field':target_field,}
+flagdata_worker(mymms,fmode,datacol,update_pars=flag_args)
     
 if save_flag:
     flagmanager(mymms, mode='save', versionname='after_1GC',)

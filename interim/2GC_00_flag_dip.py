@@ -8,6 +8,8 @@ import configparser
 from casacore.tables import table as table_alt
 from multiprocessing import Pool
 from casatools import table
+from scipy.ndimage import gaussian_filter
+from scipy.interpolate import interp1d
 
 
 config_file = sys.argv[-1]
@@ -49,9 +51,13 @@ nscan = get_nscan(mymms)
 
 scan_list = ['%04i' % scan for scan in range(nscan)]
 target_scan = [scan for scan in scan_list if scan not in g_scan]
-pair_indx = np.where((np.array(target_scan).astype('int')[:,None]-np.array(p_scan).astype('int')[None,:])==1)[-1]
-target_pair_scan = np.array(p_scan)[pair_indx].tolist()
+target_pair_scan = []
+for i,scan in enumerate(target_scan):
+    pair_indx = np.argmin(np.abs(np.array(p_scan).astype('int')-int(scan)))
+    target_pair_scan += [p_scan[pair_indx],]
 num_bl = (len(ant_names)*(len(ant_names)+1))//2 # including auto
+
+flag_dip_sigma = float(config['CAL_2GC']['flag_dip_sigma'])
 
 def flag_dip_worker(scan_indx):
     tscan_i = target_scan[scan_indx]
@@ -64,24 +70,35 @@ def flag_dip_worker(scan_indx):
     flag = maintab.getcol('FLAG').T
     data_I = (data[0]+data[-1])/2
     flag_I = (flag[0]+flag[-1])>0
-    data_V = (data[0]-data[-1])/2j
+    data_V = (data[1]-data[2])/2j
+    flag_V = (flag[1]+flag[2])>0
+    
     maintab.close()
     data_I = data_I.reshape((len(chans),-1,num_bl))
     data_V = data_V.reshape((len(chans),-1,num_bl))
     flag_I = flag_I.reshape((len(chans),-1,num_bl))
+    flag_V = flag_V.reshape((len(chans),-1,num_bl))
     ant1 = ant1.reshape((-1,num_bl))
     ant2 = ant2.reshape((-1,num_bl))
     flag = flag.reshape((len(flag),len(chans),-1,num_bl))
-    V_amp_sq= np.sqrt(np.sum(np.abs(data_V)**2*(1-flag_I),axis=(1,2))/np.sum(1-flag_I,axis=(1,2)))
+    V_amp_sq= np.sqrt(np.sum(np.abs(data_V)**2*(1-flag_V),axis=(1,2))/np.sum(1-flag_V,axis=(1,2)))
     ant_flag_dip = np.zeros((len(ant_names),len(chans)),dtype='bool')
     flag_dip = np.zeros_like(flag)
     for ant_sel in range(len(ant_names)):
         sel_indx = ((ant1==ant_sel) + (ant2==ant_sel))>0
         flux_scale_ant = np.sum(data_I*(1-flag_I)*sel_indx[None,:,:],axis=(1,2))/np.sum((1-flag_I)*sel_indx[None,:,:],axis=(1,2))
         sigma_v_err = V_amp_sq/np.sqrt(((1-flag_I)*sel_indx[None,:,:]).sum(axis=(1,2)))
-        smooth_ant = gaussian_filter(np.abs(flux_scale_ant),5)
-        ant_flag_dip[ant_sel] = (np.abs(flux_scale_ant)<=(smooth_ant-4/np.sqrt(2)*sigma_v_err))
-        ant_flag_dip[ant_sel] += (np.abs(flux_scale_ant)>=(smooth_ant+4/np.sqrt(2)*sigma_v_err))
+        nan_indx = (np.abs(flux_scale_ant)==np.abs(flux_scale_ant))
+        if nan_indx.mean() ==0:
+            continue
+        smooth_ant = gaussian_filter(np.abs(flux_scale_ant)[nan_indx],5)
+        smooth_func = interp1d(
+            chans[nan_indx],smooth_ant,
+            bounds_error=False,fill_value='extrapolate'
+        )
+        smooth_ant = smooth_func(chans)
+        ant_flag_dip[ant_sel] = (np.abs(flux_scale_ant)<=(smooth_ant-flag_dip_sigma/np.sqrt(2)*sigma_v_err))
+        ant_flag_dip[ant_sel] += (np.abs(flux_scale_ant)>=(smooth_ant+flag_dip_sigma/np.sqrt(2)*sigma_v_err))
         flag_dip[0][:,sel_indx] += ant_flag_dip[ant_sel][:,None]
         flag_dip[-1][:,sel_indx] += ant_flag_dip[ant_sel][:,None]
     flag_update = (flag+flag_dip)>0
