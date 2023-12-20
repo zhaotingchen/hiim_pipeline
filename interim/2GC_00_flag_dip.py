@@ -97,8 +97,11 @@ def flag_dip_worker(scan_indx):
             bounds_error=False,fill_value='extrapolate'
         )
         smooth_ant = smooth_func(chans)
-        ant_flag_dip[ant_sel] = (np.abs(flux_scale_ant)<=(smooth_ant-flag_dip_sigma/np.sqrt(2)*sigma_v_err))
-        ant_flag_dip[ant_sel] += (np.abs(flux_scale_ant)>=(smooth_ant+flag_dip_sigma/np.sqrt(2)*sigma_v_err))
+        smooth_err = gaussian_filter(sigma_v_err[nan_indx],5)
+        smooth_errfunc = interp1d(chans[nan_indx],smooth_err,bounds_error=False,fill_value='extrapolate')
+        smooth_err = smooth_errfunc(chans)
+        ant_flag_dip[ant_sel] = (np.abs(flux_scale_ant)<=(smooth_ant-flag_dip_sigma/np.sqrt(2)*smooth_err))
+        ant_flag_dip[ant_sel] += (np.abs(flux_scale_ant)>=(smooth_ant+flag_dip_sigma/np.sqrt(2)*smooth_err))
         flag_dip[0][:,sel_indx] += ant_flag_dip[ant_sel][:,None]
         flag_dip[-1][:,sel_indx] += ant_flag_dip[ant_sel][:,None]
     flag_update = (flag+flag_dip)>0

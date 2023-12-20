@@ -76,19 +76,19 @@ cal_syscall = gen_syscall(python_setup['calltype'],
 cal_syscall = cal_syscall.split('\n')
 
 restore_setup = dict()
-restore_setup['restore-list'] = ''
 restore_setup['temp-dir'] = file_setup['temp-dir']
 if 'verbose' in file_setup.keys():
     restore_setup['verbose'] = ''
+restore_setup['restore-list'] = ''
     
 predict_setup = dict()
-predict_setup['predict'] = ''
 predict_setup['temp-dir'] = file_setup['temp-dir']
 if 'verbose' in file_setup.keys():
     predict_setup['verbose'] = ''
 predict_setup['name'] = '{OUTPUT_temp}/{target_field}_predict'.format(**locals())
 predict_setup['field'] = strlist_to_str(np.vectorize(str)(field_id))
 predict_setup['channels-out'] = str(len(chans))
+predict_setup['predict'] = ''
 
 syscall_predict = gen_syscall_wsclean(mymms,config,predict_setup)
 
