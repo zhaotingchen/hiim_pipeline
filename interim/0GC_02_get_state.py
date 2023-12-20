@@ -26,6 +26,10 @@ from hiimtool.ms_tool import get_nchan,get_nscan,get_fields,get_states
 from hiimtool.ms_tool import get_primary_candidates,get_secondaries,get_targets,get_primary_tag
 from hiimtool.basic_util import vfind_scan
 
+def unravel_list(inp):
+    out = [item for sublist in inp for item in sublist]
+    return out
+
 ms_dir = FILE_working_ms
 
 primary_state, secondary_state, target_state, unknown_state =get_states(
@@ -71,6 +75,11 @@ for i,scan_id in enumerate(scan_list):
         primary_scan[primary_state.index(sub_state)] += (scan_id,)
     if sub_state in secondary_state:
         secondary_scan[secondary_state.index(sub_state)] += (scan_id,)
+        
+g_scan = unravel_list(primary_scan+secondary_scan)
+target_scan = [scan for scan in scan_list if scan not in g_scan]
+target_field = [field for field in field_names if field not in (primary_name+secondary_names)]
+
 
 with open('config.py','a') as file:
     file.write('CAL_1GC_PRIMARY_STATE'+' = '+str(primary_state)+'\n')
@@ -83,3 +92,5 @@ with open('config.py','a') as file:
     file.write('CAL_1GC_REPHASE'+' = '+str(dorephrase)+'\n')
     file.write('CAL_1GC_PRIMARY_SCAN'+' = '+str(primary_scan)+'\n')
     file.write('CAL_1GC_SECONDARY_SCAN'+' = '+str(secondary_scan)+'\n')
+    file.write('CAL_1GC_TARGET_NAME'+' = '+str(target_field)+'\n')
+    file.write('CAL_1GC_TARGET_SCAN'+' = '+str(target_scan)+'\n')
