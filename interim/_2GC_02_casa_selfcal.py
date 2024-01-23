@@ -17,7 +17,7 @@ config.read(config_file)
 hiimtool = config['FILE']['hiimtool']
 sys.path.append(hiimtool)
 from hiimtool.config_util import tidy_config_path
-from hiimtool.ms_tool import get_nscan,get_antnames,get_chanfreq
+from hiimtool.ms_tool import get_chanfreq
 
 config = tidy_config_path(config)
 
@@ -49,7 +49,7 @@ def get_subms(scan):
     assert len(subms)==1
     return subms[0]
 
-mymms = FILE_working_ms
+mymms = FILE_output_ms
 gain_dir = OUTPUT_cal
 block_id = find_block_id(mymms)
 if CAL_1GC_ref_ant != 'auto':
@@ -57,18 +57,7 @@ if CAL_1GC_ref_ant != 'auto':
 else:
     ref_ant = strlist_to_str(list(CAL_1GC_ref_pool))
     
-bpfield_name = strlist_to_str(CAL_1GC_PRIMARY_NAME)
 myuvrange = config['CAL_2GC']['uvrange']
-temp_dir = OUTPUT_temp
-
-bp_scan = np.sort(unravel_list(CAL_1GC_PRIMARY_SCAN)).tolist()
-p_scan = np.sort(unravel_list(CAL_1GC_SECONDARY_SCAN)).tolist()
-scan_sort = np.argsort(bp_scan+p_scan)
-g_scan = np.sort(bp_scan+p_scan).tolist()
-
-nscan = get_nscan(mymms)
-scan_list = ['%04i' % scan for scan in range(nscan)]
-target_scan = [scan for scan in scan_list if scan not in g_scan]
 
 target_field = strlist_to_str([field for field in CAL_1GC_FIELD_NAMES if field not in (CAL_1GC_PRIMARY_NAME+CAL_1GC_SECONDARY_NAME)])
 
@@ -119,12 +108,6 @@ def applycal_worker(subms,gaintable,gainfield,update_pars,norun=False):
             )
     return 1
 
-num_scan_prim = [len(x) for x in CAL_1GC_PRIMARY_SCAN]
-num_scan_sec = [len(x) for x in CAL_1GC_SECONDARY_SCAN]
-bp_scan_field_name = np.repeat(CAL_1GC_PRIMARY_NAME,num_scan_prim).tolist()
-p_scan_field_name = np.repeat(CAL_1GC_SECONDARY_NAME,num_scan_sec).tolist()
-
-g_scan_field_name = np.array(bp_scan_field_name+p_scan_field_name)[scan_sort].tolist()
 minsnr = float(config['CAL_2GC']['minsnr'])
 solint = config['CAL_2GC']['solint']
 
@@ -169,53 +152,30 @@ for i in range(num_sub_spw):
 
 caltype='G'
 cal_args = {
-    'interp':['nearest','linear','linear','linear'],
     'solint':solint,
     'calmode':'p',
 }
 arglist = []
-
-for i,scan in enumerate(target_scan):
-    pair_indx = np.argmin(np.abs(np.array(p_scan).astype('int')-int(scan)))
-    pair_scan = p_scan[pair_indx]
-    for spw_i in range(num_sub_spw):
-        subms = get_subms(scan)
-        scan_args = cal_args.copy()
-        bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'B'+str(1)
-        gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(1)
-        ktabc = gain_dir+'/cal_1GC_'+block_id+'_'+pair_scan+'_subspw_'+str(spw_i)+'.'+'K'+str(3)
-        ftabc = gain_dir+'/cal_1GC_'+block_id+'_'+pair_scan+'_subspw_'+str(spw_i)+'.'+'flux'+str(3)
-        caltable = gain_dir+'/cal_2GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+caltype+str(cround)
-        scan_args['gaintable'] = [ktabc,gtabc,bptabc,ftabc]
-        scan_args['spw'] = spw_str[spw_i]
-        scan_args['gainfield'] = ['',strlist_to_str(np.unique(bp_scan_field_name)),strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[pair_indx]]
-        scan_args['field'] = target_field
-        scan_args['caltable'] = caltable
-        arglist += [(subms,caltype,cround,scan_args),]
-
+for spw_i in range(num_sub_spw): 
+    scan_args = cal_args.copy()
+    gtabself = gain_dir+'/cal_2GC_'+block_id+'_subspw_'+str(spw_i)+'.'+caltype+str(cround)
+    scan_args['caltable'] = gtabself
+    scan_args['spw'] = spw_str[spw_i]
+    arglist += [(mymms,caltype,cround,scan_args),]
 
 for arg in arglist:
     gaincal_worker(arg[0],arg[1],arg[2],arg[3])
-    
-app_args = {'interp':['nearest','linear','linear','linear','nearest'],
-           }
 
-for i,scan in enumerate(target_scan):
-    pair_indx = np.argmin(np.abs(np.array(p_scan).astype('int')-int(scan)))
-    pair_scan = p_scan[pair_indx]
-    for spw_i in range(num_sub_spw):
-        subms = get_subms(scan)
-        scan_args = app_args.copy()
-        bptabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'B'+str(1)
-        gtabc = gain_dir+'/cal_1GC_'+block_id+'_subspw_'+str(spw_i)+'.'+'G'+str(1)
-        ktabc = gain_dir+'/cal_1GC_'+block_id+'_'+pair_scan+'_subspw_'+str(spw_i)+'.'+'K'+str(3)
-        ftabc = gain_dir+'/cal_1GC_'+block_id+'_'+pair_scan+'_subspw_'+str(spw_i)+'.'+'flux'+str(3)
-        gtabself = gain_dir+'/cal_2GC_'+block_id+'_'+scan+'_subspw_'+str(spw_i)+'.'+caltype+str(cround)
-        scan_args['gaintable'] = [ktabc,gtabc,bptabc,ftabc,gtabself]
-        scan_args['spw'] = spw_str[spw_i]
-        scan_args['gainfield'] = ['',strlist_to_str(np.unique(bp_scan_field_name)),strlist_to_str(np.unique(bp_scan_field_name)),p_scan_field_name[pair_indx],target_field]
-        scan_args['field'] = target_field
-        arglist += [(subms,scan_args['gaintable'],scan_args['gainfield'],scan_args),]
+app_args = {'interp':'nearest',
+           }
+arglist = []
+for spw_i in range(num_sub_spw):
+    scan_args = app_args.copy()
+    gtabself = gain_dir+'/cal_2GC_'+block_id+'_subspw_'+str(spw_i)+'.'+caltype+str(cround)
+    scan_args['gaintable'] = [gtabself,]
+    scan_args['spw'] = spw_str[spw_i]
+    scan_args['gainfield'] = [target_field,]
+    arglist += [(mymms,scan_args['gaintable'],scan_args['gainfield'],scan_args),]
         
 for arg in arglist:
     applycal_worker(arg[0],arg[1],arg[2],arg[3])
