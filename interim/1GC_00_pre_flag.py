@@ -1,22 +1,23 @@
-#mpicasa, LARGE, config.py, 0
+#containermpi, NODE, config.ini, 0
 import glob
 import sys
 import os
 import numpy as np
-
-def strlist_to_str(inp):
-    out = ''
-    for vals in inp:
-        out += vals+','
-    out = out[:-1]
-    return out
-
-def unravel_list(inp):
-    out = [item for sublist in inp for item in sublist]
-    return out
+import configparser
+from casatasks import *
 
 config_file = sys.argv[-1]
-execfile(config_file)
+config = configparser.ConfigParser()
+config.read(config_file)
+
+hiimtool = config['FILE']['hiimtool']
+sys.path.append(hiimtool)
+from hiimtool.basic_util import strlist_to_str,unravel_list
+
+work_dir = config['FILE']['work_dir']
+sys.path.append(work_dir)
+from config import *
+
 mymms = FILE_working_ms
 save_flag = (CAL_1GC_save_flag.lower()=='true')
 extra_preflag = (CAL_1GC_extra_preflag.lower()=='true')
